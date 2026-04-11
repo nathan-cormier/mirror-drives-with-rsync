@@ -54,7 +54,7 @@ func main() {
 func run() error {
 	dryRun := flag.Bool("dry-run", false, "run rsync with -n and -i (no file changes; itemized output)")
 	resume := flag.Bool("resume", false, "continue a partial sync using saved state on source and dest")
-	compare := flag.Bool("compare", false, "print file count and total size for source and dest, then exit")
+	compare := flag.Bool("compare", false, "print file count and total size for source and dest, and diff contents, then exit")
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "usage: %s [-dry-run] [-resume] [-compare] <source_root> <dest_root>\n", os.Args[0])
 		flag.PrintDefaults()
