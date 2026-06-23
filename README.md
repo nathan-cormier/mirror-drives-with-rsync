@@ -24,7 +24,7 @@ go build ./cmd/mirror-drives-with-rsync
 ## Usage
 
 ```
-mirror-drives-with-rsync [-dry-run] [-resume] [-compare] <source_root> <dest_root>
+mirror-drives-with-rsync [-dry-run] [-resume] [-compare] [-no-delete] <source_root> <dest_root>
 ```
 
 ### Flags
@@ -34,6 +34,7 @@ mirror-drives-with-rsync [-dry-run] [-resume] [-compare] <source_root> <dest_roo
 | `-dry-run` | Preview what rsync would do without making any changes (uses `rsync -n -i`) |
 | `-resume` | Continue a previously interrupted sync using saved state |
 | `-compare` | Print file counts and total sizes for both roots, plus a diff of files unique to each side |
+| `-no-delete` | Copy files from source to destination without deleting extraneous files on the destination (omits rsync's `--delete`) |
 
 ## Examples
 
@@ -108,6 +109,34 @@ Proceed? [y/N] y
 
 Done. (dry run — no changes made)
 ```
+
+### Keep extraneous destination files (no delete)
+
+By default the tool runs a true mirror: files on the destination that no longer exist on the source are deleted (rsync's `--delete`). Use `-no-delete` to make the sync additive instead — files are copied from source to destination, but anything already on the destination is left untouched:
+
+```
+$ mirror-drives-with-rsync -no-delete /Volumes/Camera /Volumes/Backup
+
+rsync version 3.3.0  protocol version 33
+Mode: no-delete (extraneous files on dest will be kept)
+
+Subdirectories on source: /Volumes/Camera
+Destination root: /Volumes/Backup
+
+   1) 2022
+   2) 2023
+   3) 2024
+
+Enter numbers to mirror (space or comma separated), or "all" for every subdirectory.
+Selection: all
+
+>>> rsync: /Volumes/Camera/2024/  ->  /Volumes/Backup/2024/
+...
+
+Done.
+```
+
+This flag can be combined with `-dry-run` to preview an additive sync.
 
 ### Resume an interrupted sync
 

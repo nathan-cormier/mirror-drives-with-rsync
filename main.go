@@ -13,6 +13,10 @@
 // destination roots without syncing; this is useful to confirm the mirroring completed as expected.
 // It will also show you a diff of files that are only on the source or destination.
 //
+// # Use -no-delete to copy files from the source to the destination without deleting
+// extraneous files on the destination that don't exist on the source (the --delete flag is
+// not passed to rsync). This makes the run additive rather than a true mirror.
+//
 // Note: this will skip Apple sidecar files (they are not synced) that start with `._`,
 // which macOS generates for certain filesystems (exFAT for example).
 package main
@@ -55,14 +59,15 @@ func run() error {
 	dryRun := flag.Bool("dry-run", false, "run rsync with -n and -i (no file changes; itemized output)")
 	resume := flag.Bool("resume", false, "continue a partial sync using saved state on source and dest")
 	compare := flag.Bool("compare", false, "print file count and total size for source and dest, and diff contents, then exit")
+	noDelete := flag.Bool("no-delete", false, "copy files but do not delete extraneous files on dest (omit rsync --delete)")
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "usage: %s [-dry-run] [-resume] [-compare] <source_root> <dest_root>\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "usage: %s [-dry-run] [-resume] [-compare] [-no-delete] <source_root> <dest_root>\n", os.Args[0])
 		flag.PrintDefaults()
 	}
 	flag.Parse()
 	args := flag.Args()
 	if len(args) != 2 {
-		return fmt.Errorf("usage: %s [-dry-run] [-resume] [-compare] <source_root> <dest_root>", filepath.Base(os.Args[0]))
+		return fmt.Errorf("usage: %s [-dry-run] [-resume] [-compare] [-no-delete] <source_root> <dest_root>", filepath.Base(os.Args[0]))
 	}
 	if *dryRun && *resume {
 		return fmt.Errorf("-dry-run cannot be used with -resume")
@@ -106,6 +111,9 @@ func run() error {
 	}
 	if *resume {
 		fmt.Println("Mode: resume")
+	}
+	if *noDelete {
+		fmt.Println("Mode: no-delete (extraneous files on dest will be kept)")
 	}
 	fmt.Println()
 
@@ -237,7 +245,7 @@ func run() error {
 		startIndex = 0
 	}
 
-	if err := runSyncBatch(rsyncPath, *dryRun, sourceRoot, destRoot, folderNames, startIndex); err != nil {
+	if err := runSyncBatch(rsyncPath, *dryRun, *noDelete, sourceRoot, destRoot, folderNames, startIndex); err != nil {
 		return err
 	}
 
@@ -250,7 +258,7 @@ func run() error {
 	return nil
 }
 
-func runSyncBatch(rsyncPath string, dryRun bool, sourceRoot, destRoot string, folderNames []string, startIndex int) error {
+func runSyncBatch(rsyncPath string, dryRun, noDelete bool, sourceRoot, destRoot string, folderNames []string, startIndex int) error {
 	for i := startIndex; i < len(folderNames); i++ {
 		name := folderNames[i]
 		src := filepath.Join(sourceRoot, name)
@@ -269,7 +277,7 @@ func runSyncBatch(rsyncPath string, dryRun bool, sourceRoot, destRoot string, fo
 		} else {
 			fmt.Printf(">>> rsync: %s/  ->  %s/\n", src, dest)
 		}
-		cmd := exec.Command(rsyncPath, rsyncMirrorArgs(dryRun, src, dest)...)
+		cmd := exec.Command(rsyncPath, rsyncMirrorArgs(dryRun, noDelete, src, dest)...)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		if err := cmd.Run(); err != nil {
@@ -504,8 +512,11 @@ func formatBytes(b int64) string {
 	return fmt.Sprintf("%.2f %ciB", float64(b)/float64(div), "KMGTPE"[exp])
 }
 
-func rsyncMirrorArgs(dryRun bool, src, dest string) []string {
-	out := []string{"-a", "--no-p", "--delete", "--progress", "--exclude=._*", "--filter=protect ._*"}
+func rsyncMirrorArgs(dryRun, noDelete bool, src, dest string) []string {
+	out := []string{"-a", "--no-p", "--progress", "--exclude=._*", "--filter=protect ._*"}
+	if !noDelete {
+		out = append(out, "--delete")
+	}
 	if dryRun {
 		out = append([]string{"-v", "-n", "-i"}, out...)
 	}
